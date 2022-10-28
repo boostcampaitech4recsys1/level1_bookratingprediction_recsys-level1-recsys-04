@@ -3,7 +3,7 @@ import tqdm
 import numpy as np
 import torch
 import torch.nn as nn
-from ._models import RMSELoss, FeaturesEmbedding, FactorizationMachine_v
+from ._models import RMSELoss, FeaturesEmbedding, FactorizationMachine_v, rmse
 import wandb
 
 class CNN_Base(nn.Module):
@@ -100,8 +100,11 @@ class CNN_FM:
                 self.optimizer.step()
                 val_total_loss += loss.item()
                 val_n += 1
+            rmse_score = self.predict_train()
             wandb.log({
-                "Loss": val_total_loss/val_n
+                "Train_Loss": total_loss/val_n,
+                "Validation_Loss": val_total_loss/val_n,
+                "RMSE":rmse_score
                 })
             if minimum_loss > (val_total_loss/val_n):
                 minimum_loss = (val_total_loss/val_n)
@@ -112,7 +115,19 @@ class CNN_FM:
             else:
                 loss_list.append([epoch, total_loss/n, val_total_loss/val_n, 'None'])
             tk0.set_postfix(train_loss=total_loss/n, valid_loss=val_total_loss/val_n)
-
+    
+    def predict_train(self):
+        targets, predicts = list(), list()
+        with torch.no_grad():
+            for data in self.valid_data_loader:
+                if len(data) == 2:
+                    fields, target = [data['user_isbn_vector'].to(self.device)], data['label'].to(self.device)
+                else:
+                    fields, target = [data['user_isbn_vector'].to(self.device), data['img_vector'].to(self.device)], data['label'].to(self.device)
+                y = self.model(fields)
+                targets.extend(target.tolist())
+                predicts.extend(y.tolist())
+        return rmse(targest, predicts)
 
     def predict(self, test_data_loader):
         self.model.eval()

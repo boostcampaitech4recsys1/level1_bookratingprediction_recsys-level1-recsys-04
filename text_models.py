@@ -3,7 +3,7 @@ import numpy as np
 import tqdm
 import torch
 import torch.nn as nn
-from ._models import RMSELoss, FeaturesEmbedding, FactorizationMachine_v
+from ._models import RMSELoss, FeaturesEmbedding, FactorizationMachine_v, rmse
 import wandb
 
 
@@ -123,9 +123,11 @@ class DeepCoNN:
                 self.optimizer.step()
                 val_total_loss += loss.item()
                 val_n += 1
+            rmse_score = self.predict_train()
             wandb.log({
                 "Train_Loss": total_loss/val_n,
-                "Valid_Loss": val_total_loss/val_n
+                "Valid_Loss": val_total_loss/val_n,
+                "RMSE":rmse_score
                 })
             if minimum_loss > (val_total_loss/val_n):
                 minimum_loss = (val_total_loss/val_n)
@@ -137,7 +139,19 @@ class DeepCoNN:
                 loss_list.append([epoch, total_loss/n, val_total_loss/val_n, 'None'])
             tk0.set_postfix(train_loss=total_loss/n, valid_loss=val_total_loss/val_n)
 
-
+    def predict_train(self):
+        targets, predicts = list(), list()
+        with torch.no_grad():
+            for data in self.valid_data_loader:
+                if len(data)==3:
+                    fields, target = [data['user_summary_merge_vector'].to(self.device), data['item_summary_vector'].to(self.device)], data['label'].to(self.device)
+                elif len(data)==4:
+                    fields, target = [data['user_isbn_vector'].to(self.device), data['user_summary_merge_vector'].to(self.device), data['item_summary_vector'].to(self.device)], data['label'].to(self.device)
+                y = self.model(fields)
+                targets.extend(target.tolist())
+                predicts.extend(y.tolist())
+        return rmse(targets, predicts)
+    
     def predict(self, test_data_loader):
         self.model.eval()
         self.model.load_state_dict(torch.load('./models/{}.pt'.format(self.model_name)))
