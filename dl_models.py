@@ -65,7 +65,6 @@ class NeuralCollaborativeFiltering:
                 })
             print('epoch:', epoch, 'validation: rmse:', rmse_score)
 
-
     def predict_train(self):
         self.model.eval()
         targets, predicts = list(), list()
