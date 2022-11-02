@@ -127,7 +127,7 @@ class CNN_FM:
                 y = self.model(fields)
                 targets.extend(target.tolist())
                 predicts.extend(y.tolist())
-        return rmse(targest, predicts)
+        return rmse(targets, predicts)
 
     def predict(self, test_data_loader):
         self.model.eval()
