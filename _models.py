@@ -6,7 +6,6 @@ import torch.nn as nn
 def rmse(real: list, predict: list) -> float:
     pred = np.array(predict)
     return np.sqrt(np.mean((real-pred) ** 2))
-    #이건 어따 쓰라고 만들어뒀을까
 
 
 class RMSELoss(torch.nn.Module):
@@ -61,7 +60,7 @@ class FeaturesEmbedding(nn.Module):
         self.embedding = torch.nn.Embedding(sum(field_dims), embed_dim)
         self.offsets = np.array((0, *np.cumsum(field_dims)[:-1]), dtype=np.long)
         torch.nn.init.xavier_uniform_(self.embedding.weight.data)
-        #의미파악이 잘 안된다.
+
     def forward(self, x: torch.Tensor):
         """
         :param x: Long tensor of size ``(batch_size, num_fields)``
@@ -70,7 +69,7 @@ class FeaturesEmbedding(nn.Module):
         return self.embedding(x)
 
 class FeaturesLinear(nn.Module):
-#이게 정확하게 nn.linear와 가지는 차이가 무엇일까? 받는 인자?
+
     def __init__(self, field_dims: np.ndarray, output_dim: int=1):
         super().__init__()
         self.fc = torch.nn.Embedding(sum(field_dims), output_dim)
@@ -166,8 +165,8 @@ class _NeuralCollaborativeFiltering(nn.Module):
 
     def __init__(self, field_dims, user_field_idx, item_field_idx, embed_dim, mlp_dims, dropout):
         super().__init__()
-        self.user_field_idx = user_field_idx #그냥 0
-        self.item_field_idx = item_field_idx #그냥 1
+        self.user_field_idx = user_field_idx
+        self.item_field_idx = item_field_idx
         self.embedding = FeaturesEmbedding(field_dims, embed_dim)
         self.embed_output_dim = len(field_dims) * embed_dim
         self.mlp = MultiLayerPerceptron(self.embed_output_dim, mlp_dims, dropout, output_layer=False)
@@ -180,7 +179,7 @@ class _NeuralCollaborativeFiltering(nn.Module):
         x = self.embedding(x)
         user_x = x[:, self.user_field_idx].squeeze(1)
         item_x = x[:, self.item_field_idx].squeeze(1)
-        gmf = user_x * item_x #내적하지 않음.
+        gmf = user_x * item_x
         x = self.mlp(x.view(-1, self.embed_output_dim))
         x = torch.cat([gmf, x], dim=1)
         x = self.fc(x).squeeze(1)
@@ -222,7 +221,7 @@ class CrossNetwork(nn.Module):
         x0 = x
         for i in range(self.num_layers):
             xw = self.w[i](x)
-            x = x0 * xw + self.b[i] + x #논문의 수식 그대로
+            x = x0 * xw + self.b[i] + x
         return x
 
 class _DeepCrossNetworkModel(nn.Module):
@@ -249,40 +248,3 @@ class _DeepCrossNetworkModel(nn.Module):
         x_out = self.mlp(x_l1)
         p = self.cd_linear(x_out)
         return p.squeeze(1)
-
-class _donggun(nn.Module):
-
-    # FFM + WDN
-    # def __init__(self, field_dims: np.ndarray, embed_dim: int, mlp_dims: tuple, dropout: float):
-    #     super().__init__()
-        # self.linear = FeaturesLinear(field_dims)
-        # self.embedding = FeaturesEmbedding(field_dims, embed_dim)
-        # self.embed_output_dim = len(field_dims) * embed_dim
-        # self.mlp = MultiLayerPerceptron(self.embed_output_dim, mlp_dims, dropout)
-        # self.ffm = FieldAwareFactorizationMachine(field_dims, embed_dim)
-
-    # FFM + DCN
-    def __init__(self, field_dims: np.ndarray, embed_dim: int, num_layers: int, mlp_dims: tuple, dropout: float):
-        super().__init__() # input도 바뀌었으니 체크
-        self.embedding = FeaturesEmbedding(field_dims, embed_dim)
-        self.embed_output_dim = len(field_dims) * embed_dim
-        self.cn = CrossNetwork(self.embed_output_dim, num_layers)
-        self.mlp = MultiLayerPerceptron(self.embed_output_dim, mlp_dims, dropout, output_layer=False)
-        self.cd_linear = nn.Linear(mlp_dims[0], 1, bias=False)
-        self.ffm = FieldAwareFactorizationMachine(field_dims, embed_dim)
-
-
-    def forward(self, x: torch.Tensor):
-        # FFM + WDN
-        # embed_x = self.embedding(x)
-        # ffm_term = torch.sum(torch.sum(self.ffm(x), dim=1), dim=1, keepdim=True)
-        # x = self.linear(x) + self.mlp(embed_x.view(-1, self.embed_output_dim)) + ffm_term
-
-        # FFM + DCN
-        embed_x = self.embedding(x).view(-1, self.embed_output_dim)
-        x_l1 = self.cn(embed_x)
-        x_out = self.mlp(x_l1)
-        p = self.cd_linear(x_out)
-        ffm_term = torch.sum(torch.sum(self.ffm(x), dim=1), dim=1, keepdim=True)
-        x = ffm_term + p
-        return x.squeeze(1)
